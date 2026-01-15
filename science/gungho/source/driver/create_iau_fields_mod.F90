@@ -25,7 +25,8 @@ module create_iau_fields_mod
   use section_choice_config_mod,     only : iau_surf, &
                                             iau_sst
 #ifdef UM_PHYSICS
-  use iau_config_mod,                only : iau_use_addinf,  &
+  use iau_config_mod,                only : iau_murk,        &
+                                            iau_use_addinf,  &
                                             iau_use_bcorr,   &
                                             iau_use_pertinc, &
                                             iau_wet_density
@@ -128,6 +129,12 @@ module create_iau_fields_mod
         read_behaviour=read_behaviour )
 
 #ifdef UM_PHYSICS
+    if ( iau_murk ) then
+      call setup_field( iau_fields, depository, prognostic_fields, &
+        "murk_inc", Wtheta, mesh, checkpoint_restart_flag, &
+        read_behaviour=read_behaviour )
+    end if
+
     ! IAU control-pert pert increment fields
     if ( iau_use_pertinc ) then
       call log_event( 'Create IAU pert fields', LOG_LEVEL_INFO )

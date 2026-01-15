@@ -17,6 +17,7 @@ module update_iau_inc_alg_mod
   use fs_continuity_mod,                only : W2, W3, Wtheta
   use iau_config_mod,                   only : iau_mode,               &
                                                iau_mode_time_mixed,    &
+                                               iau_murk,               &
                                                iau_pc2,                &
                                                iau_tendency_addinf,    &
                                                iau_tendency_ainc,      &
@@ -112,6 +113,7 @@ module update_iau_inc_alg_mod
     type( field_type ), pointer :: m_r
     type( field_type ), pointer :: m_s
     type( field_type ), pointer :: m_g
+    type( field_type ), pointer :: murk
 
     ! Total increments for updating prognostic state
     type( field_type ), pointer :: u_in_w3_tot_inc
@@ -123,6 +125,7 @@ module update_iau_inc_alg_mod
     type( field_type ), pointer :: rho_r2_tot_inc
     type( field_type ), pointer :: rho_tot_inc
     type( field_type ), pointer :: exner_tot_inc
+    type( field_type ), pointer :: murk_tot_inc
 
     ! Cloud field pointers
     type( field_type ), pointer :: bcf
@@ -165,6 +168,7 @@ module update_iau_inc_alg_mod
     call prognostic_fields % get_field( 'm_r', m_r )
     call prognostic_fields % get_field( 'm_s', m_s )
     call prognostic_fields % get_field( 'm_g', m_g )
+    if ( iau_murk ) call prognostic_fields % get_field( 'murk', murk )
 
     ! IAU fields
     call iau_tot_inc % get_field( 'u_in_w3_tot_inc', u_in_w3_tot_inc )
@@ -173,6 +177,8 @@ module update_iau_inc_alg_mod
     call iau_tot_inc % get_field( 'qcl_tot_inc', qcl_tot_inc )
     call iau_tot_inc % get_field( 'qcf_tot_inc', qcf_tot_inc )
     call iau_tot_inc % get_field( 'theta_tot_inc', theta_tot_inc )
+    if ( iau_murk ) &
+      call iau_tot_inc % get_field( 'murk_tot_inc', murk_tot_inc )
 
     ! Density increments may be in the form of wet density*r^2 (if
     ! produced by VAR), or dry density (if produced by JADA)
@@ -331,6 +337,14 @@ module update_iau_inc_alg_mod
     call log_field_minmax( log_level_debug, 'rho', rho )
     call print_meanrms_field( rho, log_level_debug )
 
+    ! Aerosol murk
+    if ( iau_murk ) then
+      call invoke( inc_X_plus_Y( murk, murk_tot_inc ) )
+
+      call log_event( '- After murk -', log_level_debug )
+      call print_meanrms_field( murk, log_level_debug )
+    end if
+
   end subroutine add_iau_inc
 
   !> @brief   Calculate the total IAU increment to be applied.
@@ -370,6 +384,7 @@ module update_iau_inc_alg_mod
     type( field_type ), pointer :: rho_r2_inc
     type( field_type ), pointer :: rho_inc
     type( field_type ), pointer :: exner_inc
+    type( field_type ), pointer :: murk_inc
 
     ! Aggregrated weighted increments to update prognostic state
     type( field_type ), pointer :: u_in_w3_tot_inc
@@ -380,6 +395,7 @@ module update_iau_inc_alg_mod
     type( field_type ), pointer :: theta_tot_inc
     type( field_type ), pointer :: rho_tot_inc
     type( field_type ), pointer :: exner_tot_inc
+    type( field_type ), pointer :: murk_tot_inc
 
     model_clock => modeldb % clock
 
@@ -411,6 +427,12 @@ module update_iau_inc_alg_mod
      call invoke ( setval_c( rho_tot_inc, 0.0_r_def ) )
    end if
 
+   ! Initialise aerosol murk total increments if needed
+   if ( iau_murk ) then
+     call iau_tot_inc % get_field( 'murk_tot_inc', murk_tot_inc )
+     call invoke ( setval_c( murk_tot_inc, 0.0_r_def ) )
+   end if
+
    ! Calculate appropriate weights and aggregate different types of
    ! increment valid for use on this timestep
 
@@ -434,6 +456,13 @@ module update_iau_inc_alg_mod
                             u_in_w3_tot_inc, v_in_w3_tot_inc, &
                             q_tot_inc, qcl_tot_inc, qcf_tot_inc, &
                             theta_tot_inc, exner_tot_inc, rho_tot_inc )
+   
+     ! aerosol murk increments are only present in analysis increments, so update
+     ! these here, if needed
+     if ( iau_murk ) then
+       call iau_inc_fields % get_field( 'murk_inc', murk_inc )
+       call invoke ( inc_X_plus_bY( murk_tot_inc, iau_weight, murk_inc ) )
+     end if
 
    end if
 

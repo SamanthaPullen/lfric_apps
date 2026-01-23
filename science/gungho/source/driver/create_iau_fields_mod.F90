@@ -265,11 +265,20 @@ module create_iau_fields_mod
     else
       rho_inc_name = "rho_tot_inc"
     end if
-    call create_iau_additional_fields ( mesh, modeldb, "iau_tot_inc",         &
-                                        "u_in_w3_tot_inc", "v_in_w3_tot_inc", &
-                                        "q_tot_inc", "qcl_tot_inc",           &
-                                        "qcf_tot_inc", "theta_tot_inc",       &
-                                        "exner_tot_inc", rho_inc_name )
+    if ( iau_murk ) then
+      call create_iau_additional_fields ( mesh, modeldb, "iau_tot_inc",         &
+                                          "u_in_w3_tot_inc", "v_in_w3_tot_inc", &
+                                          "q_tot_inc", "qcl_tot_inc",           &
+                                          "qcf_tot_inc", "theta_tot_inc",       &
+                                          "exner_tot_inc", rho_inc_name,        &
+                                          "murk_tot_inc" )
+    else
+      call create_iau_additional_fields ( mesh, modeldb, "iau_tot_inc",         &
+                                          "u_in_w3_tot_inc", "v_in_w3_tot_inc", &
+                                          "q_tot_inc", "qcl_tot_inc",           &
+                                          "qcf_tot_inc", "theta_tot_inc",       &
+                                          "exner_tot_inc", rho_inc_name )
+    end if
 #endif
 
    end subroutine create_iau_fields
@@ -291,6 +300,7 @@ module create_iau_fields_mod
   !> @param[in]     theta_inc_name    Name of theta increment field
   !> @param[in]     exner_inc_name    Name of exner increment field
   !> @param[in]     rho_inc_name      Name of rho increment field
+  !> @param[in]     murk_inc_name     Name of murk increment field (optional)
   subroutine create_iau_additional_fields( mesh, modeldb, iau_incs, &
                                            u_in_w3_inc_name, &
                                            v_in_w3_inc_name, &
@@ -299,7 +309,8 @@ module create_iau_fields_mod
                                            qcf_inc_name, &
                                            theta_inc_name, &
                                            exner_inc_name, &
-                                           rho_inc_name )
+                                           rho_inc_name, &
+                                           murk_inc_name )
 
     implicit none
 
@@ -314,6 +325,7 @@ module create_iau_fields_mod
     character(*),       intent(in)    :: theta_inc_name
     character(*),       intent(in)    :: exner_inc_name
     character(*),       intent(in)    :: rho_inc_name
+    character(*), optional, intent(in) :: murk_inc_name
 
     type(field_collection_type), pointer :: iau_inc_fields
     type(function_space_type),   pointer :: w3_fs
@@ -327,6 +339,7 @@ module create_iau_fields_mod
     type(field_type) :: theta_inc
     type(field_type) :: exner_inc
     type(field_type) :: rho_inc
+    type(field_type) :: murk_inc    
 
     procedure(read_interface), pointer :: tmp_read_ptr
 
@@ -386,6 +399,13 @@ module create_iau_fields_mod
     call rho_inc%initialise( vector_space = w3_fs, name=trim(rho_inc_name) )
     call rho_inc%set_read_behaviour(tmp_read_ptr)
     call iau_inc_fields%add_field(rho_inc)
+
+    ! murk inc
+    if (present(murk_inc_name)) then
+      call murk_inc%initialise( vector_space = wtheta_fs, name=trim(murk_inc_name) )
+      call murk_inc%set_read_behaviour(tmp_read_ptr)
+      call iau_inc_fields%add_field(murk_inc)    
+    end if
 
    end subroutine create_iau_additional_fields
 #endif

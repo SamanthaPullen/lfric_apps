@@ -217,12 +217,13 @@ contains
        ( ( iau_mode == iau_mode_instantaneous ) .OR. &
          ( iau_mode == iau_mode_time_mixed ) ) ) then
       if ( .not. checkpoint_read ) then
-        call update_iau_alg( modeldb,                     &
-                             twod_mesh,                   &
-                             iau_ainc_active = .true.,    &
-                             iau_addinf_active = .false., &
-                             iau_bcorr_active = .false.,  &
-                             iau_pertinc_active = .false. )
+        call update_iau_alg( modeldb,                      &
+                             twod_mesh,                    &
+                             iau_ainc_active = .true.,     &
+                             iau_addinf_active = .false.,  &
+                             iau_bcorr_active = .false.,   &
+                             iau_pertinc_active = .false., &
+                             iau_bginc_active = .false. )
       end if
 
       ! IAU increment fields can now be cleared from the depository

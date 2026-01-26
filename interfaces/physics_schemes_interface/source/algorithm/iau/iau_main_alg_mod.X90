@@ -52,7 +52,7 @@ module iau_main_alg_mod
     logical( l_def ) :: iau_ainc_active
     logical( l_def ) :: iau_addinf_active
     logical( l_def ) :: iau_bcorr_active
-    logical( l_def ) :: iau_pertinc_active
+    logical( l_def ) :: iau_pertinc_active  
     integer(i_def)   :: current_step
 
     type( field_collection_type ), pointer :: field_collection_ptr
@@ -129,12 +129,13 @@ module iau_main_alg_mod
     ! Now call the IAU with the appropriate increment types activated
     if ( ( iau_ainc_active ) .or. ( iau_addinf_active ) &
        .or. (iau_bcorr_active ) .or. ( iau_pertinc_active ) ) then
-      call update_iau_alg( modeldb,           &
-                           twod_mesh,         &
-                           iau_ainc_active,   &
-                           iau_addinf_active, &
-                           iau_bcorr_active,  &
-                           iau_pertinc_active )
+      call update_iau_alg( modeldb,                   &
+                           twod_mesh,                 &
+                           iau_ainc_active,           &
+                           iau_addinf_active,         &
+                           iau_bcorr_active,          &
+                           iau_pertinc_active,        &
+                           iau_bginc_active = .false. )
     else
       field_collection_ptr => modeldb%fields%get_field_collection("iau_tot_inc")
       call field_collection_ptr%clear()

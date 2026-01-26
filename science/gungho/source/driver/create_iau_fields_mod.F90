@@ -28,6 +28,7 @@ module create_iau_fields_mod
   use iau_config_mod,                only : iau_murk,        &
                                             iau_use_addinf,  &
                                             iau_use_bcorr,   &
+                                            iau_use_bginc,   &
                                             iau_use_pertinc, &
                                             iau_wet_density
   use nlsizes_namelist_mod,          only : sm_levels
@@ -258,6 +259,15 @@ module create_iau_fields_mod
                                            "theta_inc", "exner_inc", rho_inc_name )
     end if
 
+    ! Create field collection and fields to hold bginc increments
+    if ( iau_use_bginc ) then
+      call log_event( 'Create IAU bginc fields', LOG_LEVEL_INFO )
+      call create_iau_additional_fields ( mesh, modeldb, "iau_bginc_fields", &
+                                          "u_in_w3_inc", "v_in_w3_inc",      &
+                                          "q_inc", "qcl_inc", "qcf_inc",     &
+                                           "theta_inc", "exner_inc", rho_inc_name )
+    end if
+
     ! Create field collection and fields to hold weighted aggregated increments
     call log_event( 'Create IAU total weighted increment fields', LOG_LEVEL_INFO )
     if ( iau_wet_density ) then
@@ -339,7 +349,7 @@ module create_iau_fields_mod
     type(field_type) :: theta_inc
     type(field_type) :: exner_inc
     type(field_type) :: rho_inc
-    type(field_type) :: murk_inc    
+    type(field_type) :: murk_inc
 
     procedure(read_interface), pointer :: tmp_read_ptr
 
@@ -404,7 +414,7 @@ module create_iau_fields_mod
     if (present(murk_inc_name)) then
       call murk_inc%initialise( vector_space = wtheta_fs, name=trim(murk_inc_name) )
       call murk_inc%set_read_behaviour(tmp_read_ptr)
-      call iau_inc_fields%add_field(murk_inc)    
+      call iau_inc_fields%add_field(murk_inc)
     end if
 
    end subroutine create_iau_additional_fields

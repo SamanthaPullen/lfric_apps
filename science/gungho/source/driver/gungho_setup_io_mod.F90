@@ -91,6 +91,7 @@ module gungho_setup_io_mod
                                        start_dump_directory,      &
                                        iau_path,                  &
 #ifdef UM_PHYSICS
+                                       iau_bginc_path,            &
                                        iau_pert_path,             &
 #endif
                                        iau_sst_path,              &
@@ -161,7 +162,8 @@ module gungho_setup_io_mod
                                        chem_scheme_strattrop,     &
                                        chem_scheme_strat_test,    &
                                        chem_scheme_offline_ox
-  use iau_config_mod,            only: iau_use_pertinc
+  use iau_config_mod,            only: iau_use_bginc,             &
+                                       iau_use_pertinc
 #endif
 
   implicit none
@@ -777,6 +779,13 @@ module gungho_setup_io_mod
       if ( iau_use_pertinc ) then
         call files_list%insert_item( lfric_xios_file_type( trim(iau_pert_path), &
                                                            xios_id="iau_pert",  &
+                                                           io_mode=FILE_MODE_READ ))
+      end if
+
+      ! Setup the IAU bginc increments file
+      if ( iau_use_bginc ) then
+        call files_list%insert_item( lfric_xios_file_type( trim(iau_bginc_path), &
+                                                           xios_id="iau_bginc",  &
                                                            io_mode=FILE_MODE_READ ))
       end if
 #endif

@@ -22,6 +22,7 @@ module update_iau_inc_alg_mod
                                                iau_tendency_addinf,    &
                                                iau_tendency_ainc,      &
                                                iau_tendency_bcorr,     &
+                                               iau_tendency_bginc,     &
                                                iau_tendency_pertinc,   &
                                                iau_wet_density,        &
                                                iau_use_addinf,         &
@@ -354,9 +355,10 @@ module update_iau_inc_alg_mod
   !> @param[in]     iau_addinf_active  Switch to include additive inflation in this update
   !> @param[in]     iau_bcorr_active   Switch to include bias correction in this update
   !> @param[in]     iau_pertinc_active Switch to include pert increments in this update
+  !> @param[in]     iau_bginc_active   Switch to include bginc increments in this update  
   subroutine calc_total_inc_alg( modeldb, iau_ainc_active,            &
                                  iau_addinf_active, iau_bcorr_active, &
-                                 iau_pertinc_active )
+                                 iau_pertinc_active, iau_bginc_active )
 
     implicit none
 
@@ -366,6 +368,7 @@ module update_iau_inc_alg_mod
     logical( l_def ), intent(in)                 :: iau_addinf_active
     logical( l_def ), intent(in)                 :: iau_bcorr_active
     logical( l_def ), intent(in)                 :: iau_pertinc_active
+    logical( l_def ), intent(in)                 :: iau_bginc_active
 
     ! Internal variables
     type( field_collection_type ), pointer :: iau_tot_inc
@@ -505,6 +508,26 @@ module update_iau_inc_alg_mod
 
    end if
 
+   ! BGincs
+
+   if ( iau_bginc_active ) then
+
+     ! Calculate weights to use
+     iau_weight = calc_iau_weight( model_clock, iau_tendency_bginc )
+
+     write(log_scratch_space,'(A,F16.8)') &
+                       'IAU: weight used for bginc = ', iau_weight
+     call log_event( log_scratch_space, log_level_info )
+
+     iau_inc_fields => modeldb % fields % get_field_collection("iau_bginc_fields")
+
+     call update_total_inc( iau_weight, iau_inc_fields, &
+                            u_in_w3_tot_inc, v_in_w3_tot_inc, &
+                            q_tot_inc, qcl_tot_inc, qcf_tot_inc, &
+                            theta_tot_inc, exner_tot_inc, rho_tot_inc )
+
+   end if   
+
    ! Perturbation increments
    ! These have differently named fields so need to be added to the total
    ! separately
@@ -632,9 +655,10 @@ module update_iau_inc_alg_mod
   !> @param[in]     iau_addinf_active  Switch to include additive inflation in this update
   !> @param[in]     iau_bcorr_active   Switch to include bias correction in this update
   !> @param[in]     iau_pertinc_active Switch to include pert increments in this update
+  !> @param[in]     iau_bginc_active   Switch to include bginc increments in this update 
   subroutine update_iau_alg( modeldb, twod_mesh, iau_ainc_active, &
                              iau_addinf_active, iau_bcorr_active, &
-                             iau_pertinc_active )
+                             iau_pertinc_active, iau_bginc_active )
 
     implicit none
 
@@ -645,6 +669,7 @@ module update_iau_inc_alg_mod
     logical( l_def ), intent(in)                 :: iau_addinf_active
     logical( l_def ), intent(in)                 :: iau_bcorr_active
     logical( l_def ), intent(in)                 :: iau_pertinc_active
+    logical( l_def ), intent(in)                 :: iau_bginc_active    
 
     ! Internal variables
     type( field_collection_type ), pointer :: iau_fields
@@ -704,11 +729,12 @@ module update_iau_inc_alg_mod
 
     ! Calculate total weighted increment to be added this timestep then use it
     ! to update prognostic state
-    call calc_total_inc_alg( modeldb,           &
-                             iau_ainc_active,   &
-                             iau_addinf_active, &
-                             iau_bcorr_active,  &
-                             iau_pertinc_active )
+    call calc_total_inc_alg( modeldb,            &
+                             iau_ainc_active,    &
+                             iau_addinf_active,  &
+                             iau_bcorr_active,   &
+                             iau_pertinc_active, &
+                             iau_bginc_active )
 
     call add_iau_inc( iau_tot_inc, moist_dyn, twod_mesh, prognostic_fields, &
                       derived_fields, cloud_fields,                         &

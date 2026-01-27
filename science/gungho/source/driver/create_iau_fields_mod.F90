@@ -30,6 +30,7 @@ module create_iau_fields_mod
                                             iau_use_bcorr,   &
                                             iau_use_bginc,   &
                                             iau_use_pertinc, &
+                                            iau_tstar,       &
                                             iau_wet_density
   use nlsizes_namelist_mod,          only : sm_levels
   use jules_control_init_mod,        only : n_land_tile
@@ -134,6 +135,12 @@ module create_iau_fields_mod
       call setup_field( iau_fields, depository, prognostic_fields, &
         "murk_inc", Wtheta, mesh, checkpoint_restart_flag, &
         read_behaviour=read_behaviour )
+    end if
+
+    if ( iau_tstar ) then
+      call setup_field( iau_fields, depository, prognostic_fields, &
+         "tstar_inc", W3, mesh, checkpoint_restart_flag, &
+         twod_mesh, read_behaviour=read_behaviour, twod=.true. )
     end if
 
     ! IAU control-pert pert increment fields
@@ -244,7 +251,8 @@ module create_iau_fields_mod
     ! Create field collection and fields to hold additive inflation increments
     if ( iau_use_addinf ) then
       call log_event( 'Create IAU additive inflation fields', LOG_LEVEL_INFO )
-      call create_iau_additional_fields ( mesh, modeldb, "iau_addinf_fields", &
+      call create_iau_additional_fields ( mesh, twod_mesh, modeldb,           &
+                                          "iau_addinf_fields",                &
                                           "u_in_w3_inc", "v_in_w3_inc",       &
                                           "q_inc", "qcl_inc", "qcf_inc",      &
                                           "theta_inc", "exner_inc", rho_inc_name )
@@ -253,7 +261,8 @@ module create_iau_fields_mod
     ! Create field collection and fields to hold bias correction increments
     if ( iau_use_bcorr ) then
       call log_event( 'Create IAU bias correction fields', LOG_LEVEL_INFO )
-      call create_iau_additional_fields ( mesh, modeldb, "iau_bcorr_fields", &
+      call create_iau_additional_fields ( mesh, twod_mesh, modeldb,          &
+                                          "iau_bcorr_fields",                &
                                           "u_in_w3_inc", "v_in_w3_inc",      &
                                           "q_inc", "qcl_inc", "qcf_inc",     &
                                            "theta_inc", "exner_inc", rho_inc_name )
@@ -262,7 +271,8 @@ module create_iau_fields_mod
     ! Create field collection and fields to hold bginc increments
     if ( iau_use_bginc ) then
       call log_event( 'Create IAU bginc fields', LOG_LEVEL_INFO )
-      call create_iau_additional_fields ( mesh, modeldb, "iau_bginc_fields", &
+      call create_iau_additional_fields ( mesh, twod_mesh, modeldb,          &
+                                          "iau_bginc_fields",                &
                                           "u_in_w3_inc", "v_in_w3_inc",      &
                                           "q_inc", "qcl_inc", "qcf_inc",     &
                                            "theta_inc", "exner_inc", rho_inc_name )
@@ -276,18 +286,26 @@ module create_iau_fields_mod
       rho_inc_name = "rho_tot_inc"
     end if
     if ( iau_murk ) then
-      call create_iau_additional_fields ( mesh, modeldb, "iau_tot_inc",         &
-                                          "u_in_w3_tot_inc", "v_in_w3_tot_inc", &
-                                          "q_tot_inc", "qcl_tot_inc",           &
-                                          "qcf_tot_inc", "theta_tot_inc",       &
-                                          "exner_tot_inc", rho_inc_name,        &
-                                          "murk_tot_inc" )
+      call create_iau_additional_fields ( mesh, twod_mesh, modeldb,         &
+                                          "iau_tot_inc", "u_in_w3_tot_inc", &
+                                          "v_in_w3_tot_inc", "q_tot_inc",   &
+                                          "qcl_tot_inc", "qcf_tot_inc",     &
+                                          "theta_tot_inc", "exner_tot_inc", &
+                                          rho_inc_name, "murk_tot_inc" )
+    else if ( iau_tstar ) then
+      call create_iau_additional_fields ( mesh, twod_mesh, modeldb,         &
+                                          "iau_tot_inc", "u_in_w3_tot_inc", &
+                                          "v_in_w3_tot_inc", "q_tot_inc",   &
+                                          "qcl_tot_inc", "qcf_tot_inc",     &
+                                          "theta_tot_inc", "exner_tot_inc", &
+                                          rho_inc_name, "tstar_tot_inc" )
     else
-      call create_iau_additional_fields ( mesh, modeldb, "iau_tot_inc",         &
-                                          "u_in_w3_tot_inc", "v_in_w3_tot_inc", &
-                                          "q_tot_inc", "qcl_tot_inc",           &
-                                          "qcf_tot_inc", "theta_tot_inc",       &
-                                          "exner_tot_inc", rho_inc_name )
+      call create_iau_additional_fields ( mesh, twod_mesh, modeldb,         &
+                                          "iau_tot_inc", "u_in_w3_tot_inc", &
+                                          "v_in_w3_tot_inc", "q_tot_inc",   &
+                                          "qcl_tot_inc", "qcf_tot_inc",     &
+                                          "theta_tot_inc", "exner_tot_inc", &
+                                          rho_inc_name )
     end if
 #endif
 
@@ -300,6 +318,7 @@ module create_iau_fields_mod
   !>          total increment to be added to the prognostic state on any
   !>          given timestep.
   !> @param[in]     mesh              The current 3d mesh identifier
+  !> @param[in]     twod_mesh          The current 2d mesh identifier
   !> @param[in,out] modeldb           The model database
   !> @param[in]     iau_incs          Type of increment to create fields for
   !> @param[in]     u_in_w3_inc_name  Name of u_in_w3 increment field
@@ -311,7 +330,9 @@ module create_iau_fields_mod
   !> @param[in]     exner_inc_name    Name of exner increment field
   !> @param[in]     rho_inc_name      Name of rho increment field
   !> @param[in]     murk_inc_name     Name of murk increment field (optional)
-  subroutine create_iau_additional_fields( mesh, modeldb, iau_incs, &
+  !> @param[in]     tstar_inc_name    Name of tstar increment field (optional)
+  subroutine create_iau_additional_fields( mesh, twod_mesh, modeldb, &
+                                           iau_incs, &
                                            u_in_w3_inc_name, &
                                            v_in_w3_inc_name, &
                                            q_inc_name, &
@@ -320,11 +341,13 @@ module create_iau_fields_mod
                                            theta_inc_name, &
                                            exner_inc_name, &
                                            rho_inc_name, &
-                                           murk_inc_name )
+                                           murk_inc_name, &
+                                           tstar_inc_name )
 
     implicit none
 
     type(mesh_type),    intent(in), pointer :: mesh
+    type(mesh_type),    intent(in), pointer :: twod_mesh
     type(modeldb_type), intent(inout) :: modeldb
     character(*),       intent(in)    :: iau_incs
     character(*),       intent(in)    :: u_in_w3_inc_name
@@ -336,10 +359,12 @@ module create_iau_fields_mod
     character(*),       intent(in)    :: exner_inc_name
     character(*),       intent(in)    :: rho_inc_name
     character(*), optional, intent(in) :: murk_inc_name
+    character(*), optional, intent(in) :: tstar_inc_name
 
     type(field_collection_type), pointer :: iau_inc_fields
     type(function_space_type),   pointer :: w3_fs
     type(function_space_type),   pointer :: wtheta_fs
+    type(function_space_type),   pointer :: w3_twod_fs
 
     type(field_type) :: u_in_w3_inc
     type(field_type) :: v_in_w3_inc
@@ -350,6 +375,7 @@ module create_iau_fields_mod
     type(field_type) :: exner_inc
     type(field_type) :: rho_inc
     type(field_type) :: murk_inc
+    type(field_type) :: tstar_inc
 
     procedure(read_interface), pointer :: tmp_read_ptr
 
@@ -366,6 +392,13 @@ module create_iau_fields_mod
                                                element_order_h, &
                                                element_order_v, &
                                                Wtheta )
+
+    w3_twod_fs => function_space_collection%get_fs( twod_mesh,       &
+                                                    element_order_h, &
+                                                    element_order_v, &
+                                                    W3,              &
+                                                    ndata=1 )
+
 
     ! u inc
     call u_in_w3_inc%initialise( vector_space = w3_fs, &
@@ -415,6 +448,13 @@ module create_iau_fields_mod
       call murk_inc%initialise( vector_space = wtheta_fs, name=trim(murk_inc_name) )
       call murk_inc%set_read_behaviour(tmp_read_ptr)
       call iau_inc_fields%add_field(murk_inc)
+    end if
+
+    ! surface temperature inc
+     if (present(tstar_inc_name)) then
+      call tstar_inc%initialise( vector_space = w3_twod_fs, name=trim(tstar_inc_name) )
+      call tstar_inc%set_read_behaviour(tmp_read_ptr)
+      call iau_inc_fields%add_field(tstar_inc)
     end if
 
    end subroutine create_iau_additional_fields

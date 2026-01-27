@@ -24,6 +24,7 @@ module update_iau_inc_alg_mod
                                                iau_tendency_bcorr,     &
                                                iau_tendency_bginc,     &
                                                iau_tendency_pertinc,   &
+                                               iau_tstar,              &
                                                iau_wet_density,        &
                                                iau_use_addinf,         &
                                                iau_use_bcorr,          &
@@ -34,6 +35,7 @@ module update_iau_inc_alg_mod
   use iau_pc2_assimilation_alg_mod,     only : iau_pc2_assimilation
   use iau_time_control_mod,             only : calc_iau_weight
   use integer_field_mod,                only : integer_field_type
+  use jules_control_init_mod,           only : n_land_tile
   use level_one_temp_alg_mod,           only : level_one_temp_alg
   use lfric_xios_read_mod,              only : read_state
   use log_mod,                          only : log_event,         &
@@ -57,6 +59,7 @@ module update_iau_inc_alg_mod
   use print_meanrms_field_mod,          only : print_meanrms_field
   use locate_tropopause_alg_mod,        only : locate_tropopause_alg
   use sci_field_minmax_alg_mod,         only : log_field_minmax
+  use sci_multi_insert_kernel_mod,      only : multi_insert_kernel_type
   use sci_set_any_dof_kernel_mod,       only : set_any_dof_kernel_type
   use reference_element_mod,            only : T
 
@@ -115,6 +118,7 @@ module update_iau_inc_alg_mod
     type( field_type ), pointer :: m_s
     type( field_type ), pointer :: m_g
     type( field_type ), pointer :: murk
+    type( field_type ), pointer :: tile_temperature
 
     ! Total increments for updating prognostic state
     type( field_type ), pointer :: u_in_w3_tot_inc
@@ -127,6 +131,7 @@ module update_iau_inc_alg_mod
     type( field_type ), pointer :: rho_tot_inc
     type( field_type ), pointer :: exner_tot_inc
     type( field_type ), pointer :: murk_tot_inc
+    type( field_type ), pointer :: tstar_tot_inc
 
     ! Cloud field pointers
     type( field_type ), pointer :: bcf
@@ -139,6 +144,7 @@ module update_iau_inc_alg_mod
     type( field_type )          :: temperature
     type( field_type )          :: exner_wth
     type( field_type )          :: one_minus_qs
+    type( field_type )          :: tile_temp_inc
 
 
     ! Quantities for pc2 and level one T updates
@@ -170,6 +176,7 @@ module update_iau_inc_alg_mod
     call prognostic_fields % get_field( 'm_s', m_s )
     call prognostic_fields % get_field( 'm_g', m_g )
     if ( iau_murk ) call prognostic_fields % get_field( 'murk', murk )
+    if ( iau_tstar ) call surface_fields%get_field( 'tile_temperature', tile_temperature )
 
     ! IAU fields
     call iau_tot_inc % get_field( 'u_in_w3_tot_inc', u_in_w3_tot_inc )
@@ -180,6 +187,8 @@ module update_iau_inc_alg_mod
     call iau_tot_inc % get_field( 'theta_tot_inc', theta_tot_inc )
     if ( iau_murk ) &
       call iau_tot_inc % get_field( 'murk_tot_inc', murk_tot_inc )
+    if ( iau_tstar ) &
+      call iau_tot_inc % get_field( 'tstar_tot_inc', tstar_tot_inc )
 
     ! Density increments may be in the form of wet density*r^2 (if
     ! produced by VAR), or dry density (if produced by JADA)
@@ -346,6 +355,18 @@ module update_iau_inc_alg_mod
       call print_meanrms_field( murk, log_level_debug )
     end if
 
+    ! Surface temperature
+    if ( iau_tstar ) then
+      !create local field to hold incs in appropriate part of multi-data inc field
+      call tile_temperature%copy_field_properties( tile_temp_inc )
+      call invoke ( setval_c( tile_temp_inc, 0.0_r_def ),    &
+                    multi_insert_kernel_type( tile_temp_inc, &
+                                              tstar_tot_inc,     &
+                                              1,             &
+                                              n_land_tile ), &
+                    inc_X_plus_Y( tile_temperature, tile_temp_inc ))
+    end if
+
   end subroutine add_iau_inc
 
   !> @brief   Calculate the total IAU increment to be applied.
@@ -388,6 +409,7 @@ module update_iau_inc_alg_mod
     type( field_type ), pointer :: rho_inc
     type( field_type ), pointer :: exner_inc
     type( field_type ), pointer :: murk_inc
+    type( field_type ), pointer :: tstar_inc
 
     ! Aggregrated weighted increments to update prognostic state
     type( field_type ), pointer :: u_in_w3_tot_inc
@@ -399,6 +421,7 @@ module update_iau_inc_alg_mod
     type( field_type ), pointer :: rho_tot_inc
     type( field_type ), pointer :: exner_tot_inc
     type( field_type ), pointer :: murk_tot_inc
+    type( field_type ), pointer :: tstar_tot_inc
 
     model_clock => modeldb % clock
 
@@ -436,6 +459,27 @@ module update_iau_inc_alg_mod
      call invoke ( setval_c( murk_tot_inc, 0.0_r_def ) )
    end if
 
+   ! Initialise surface temperature total increments if needed
+   if ( iau_tstar ) then
+
+   !!!SP: temporary set up of tstar_tot_inc
+!      call log_event( 'Add IAU tstar_tot_inc to iau_tot_inc field collection', LOG_LEVEL_INFO )
+!      call tstar_tot_inc%initialise( vector_space = w3_fs, &
+!                                     name='tstar_tot_inc')
+!      call tstar_tot_inc%set_read_behaviour(tmp_read_ptr)
+!      call iau_tot_inc%add_field(tstar_tot_inc)
+!
+!      checkpoint_restart_flag = .false.
+!      read_behaviour => read_field_generic
+!
+!      call setup_field( iau_sst_fields, depository, prognostic_fields, &
+!         "tstar_sea_inc", W3, mesh, checkpoint_restart_flag, &
+!         twod_mesh, read_behaviour=read_behaviour, twod=.true. )
+  !!!SP: end temporary
+     call iau_tot_inc % get_field( 'tstar_tot_inc', tstar_tot_inc )
+     call invoke ( setval_c( tstar_tot_inc, 0.0_r_def ) )
+   end if   
+
    ! Calculate appropriate weights and aggregate different types of
    ! increment valid for use on this timestep
 
@@ -465,6 +509,13 @@ module update_iau_inc_alg_mod
      if ( iau_murk ) then
        call iau_inc_fields % get_field( 'murk_inc', murk_inc )
        call invoke ( inc_X_plus_bY( murk_tot_inc, iau_weight, murk_inc ) )
+     end if
+
+     ! surface temperature increments are only present in analysis increments field
+     ! collection for one configuration, so update these here, if needed
+     if ( iau_tstar ) then
+       call iau_inc_fields % get_field( 'tstar_inc', tstar_inc )
+       call invoke ( inc_X_plus_bY( tstar_tot_inc, iau_weight, tstar_inc ) )
      end if
 
    end if

@@ -291,14 +291,16 @@ module create_iau_fields_mod
                                           "v_in_w3_tot_inc", "q_tot_inc",   &
                                           "qcl_tot_inc", "qcf_tot_inc",     &
                                           "theta_tot_inc", "exner_tot_inc", &
-                                          rho_inc_name, "murk_tot_inc" )
+                                          rho_inc_name,                     &
+                                          murk_inc_name="murk_tot_inc" )
     else if ( iau_tstar ) then
       call create_iau_additional_fields ( mesh, twod_mesh, modeldb,         &
                                           "iau_tot_inc", "u_in_w3_tot_inc", &
                                           "v_in_w3_tot_inc", "q_tot_inc",   &
                                           "qcl_tot_inc", "qcf_tot_inc",     &
                                           "theta_tot_inc", "exner_tot_inc", &
-                                          rho_inc_name, "tstar_tot_inc" )
+                                          rho_inc_name,                     &
+                                          tstar_inc_name="tstar_tot_inc" )
     else
       call create_iau_additional_fields ( mesh, twod_mesh, modeldb,         &
                                           "iau_tot_inc", "u_in_w3_tot_inc", &
